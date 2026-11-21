@@ -63,7 +63,7 @@ My coding standard is heavily focused on clean, modular code. Avoid long files a
 - Facebook: automated logins get a puzzle and a session moved between browsers is invalidated; log in by hand in Firefox and copy the profile (`scripts/tmp_login_facebook.py` is a CLI fallback)
 - Facebook captures are ~170 KB per post; the parser stores a compact `platform_data` and must skip malformed records one by one
 - `package.json` pins Yarn 1 but `yarn.lock` is Berry; a `yarn install` may rewrite `yarn.lock` and `.yarnrc.yml`, don't commit those changes by accident
-- `database/README.md` PostgREST grants lack `scrape_terms` and insert on `accounts`; `database/migrations/` is referenced but `*.sql` is gitignored
+- `database/.gitignore` ignores `*.sql`, so put migration SQL in `database/README.md` ("Updating an existing database"), not in new `.sql` files
 - The Docker image does not install Zeeschuimer and is untested; cloud configs only run `scrape_x.py`
 
 ### Sensitive data
