@@ -4,7 +4,7 @@ This folder contains the PostgreSQL schema for Signal Jam. You can use this sche
 
 ## Schema Overview
 
-The database consists of eight tables:
+The database consists of seven tables and one view:
 
 ### `accounts`
 Stores social media accounts that are being tracked.
@@ -44,6 +44,19 @@ Stores all scraped posts across platforms.
 | `notes` | text | Free-text notes on the post (optional) |
 | `frame_id` | integer | Foreign key to frames (optional) |
 | `platform_data` | jsonb | Platform-specific metadata |
+
+### `post_reposts`
+Who reposted a post, and when. Plain reposts (retweets, shares without own text) have no content or label of their own, so they get a row here instead of a duplicate in `posts`. Quote posts add commentary and are stored in `posts` with `post_type = 'quote'`. A repost is only recorded when the original post is already in `posts`.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | serial | Primary key |
+| `post_id` | integer | The reposted post, foreign key to posts (deleted with it) |
+| `account_id` | integer | The account that reposted it, foreign key to accounts |
+| `reposted_at` | timestamptz | When it was reposted |
+| `url` | text | URL of the repost (optional) |
+
+Unique per `(post_id, account_id)`.
 
 ### `scrape_terms`
 Search and filter terms per platform, managed on the Instellingen page of the dashboard (logged-in users only). The scrapers read them at the start of each run.
@@ -104,6 +117,7 @@ Weekly AI-generated summaries of tracked content.
 | `week_start` | date | Monday of the summary week (unique) |
 | `week_end` | date | Sunday of the summary week |
 | `content` | text | Generated summary text |
+| `propaganda_channels_content` | text | Summary of the week's articles from Russian propaganda channels. `NULL` until checked, an empty string when the week had no matching articles |
 | `llm_provider` | varchar | Which LLM generated the summary (optional) |
 | `generated_at` | timestamptz | When the summary was generated |
 
@@ -180,13 +194,31 @@ VITE_POSTGREST_URL=http://localhost:3000
 
 For production, deploy PostgREST as a container alongside your database and set `VITE_POSTGREST_URL` to its public URL. If you want to restrict access, configure a JWT secret in PostgREST and set `VITE_POSTGREST_ANON_KEY` to a signed anon token.
 
-The `PGRST_DB_ANON_ROLE` must be a PostgreSQL role that has `SELECT` on the tables the dashboard reads, and `UPDATE`/`DELETE` on `posts` and `frames` for the labeling workflow. Create the role and grant permissions after running the schema:
+The `PGRST_DB_ANON_ROLE` must be a PostgreSQL role that can read the tables the dashboard shows, and write what the labeling workflow (`posts`, `frames`) and the Instellingen page (`accounts`, `scrape_terms`) change. Create the role and grant permissions after running the schema:
 
 ```sql
 CREATE ROLE anon NOLOGIN;
-GRANT SELECT ON accounts, posts, summaries, frames, articles, post_reposts, account_review_queue TO anon;
-GRANT UPDATE, DELETE ON posts, frames TO anon;
+GRANT SELECT ON accounts, posts, summaries, frames, articles, post_reposts, scrape_terms, account_review_queue TO anon;
+GRANT UPDATE, DELETE ON posts TO anon;
+GRANT INSERT, UPDATE, DELETE ON accounts, frames TO anon;
+GRANT INSERT, DELETE ON scrape_terms TO anon;
+GRANT USAGE ON SEQUENCE accounts_id_seq, frames_id_seq, scrape_terms_id_seq TO anon;
 ```
+
+> These grants let anyone who can reach PostgREST label posts and change what is scraped. For a public dashboard, give the write grants to a separate role for logged-in users and enable PostgREST's JWT authentication, like the Supabase setup does with RLS policies.
+
+## Updating an existing database
+
+`schema.sql` is for new databases. Articles gained a language, an English translation and a theme flag later; on a database from before that, run:
+
+```sql
+ALTER TABLE articles ADD COLUMN IF NOT EXISTS language VARCHAR(10);
+ALTER TABLE articles ADD COLUMN IF NOT EXISTS title_en TEXT;
+ALTER TABLE articles ADD COLUMN IF NOT EXISTS content_en TEXT;
+ALTER TABLE articles ADD COLUMN IF NOT EXISTS relevant_for_signal_jam_theme BOOLEAN NOT NULL DEFAULT FALSE;
+```
+
+Then fill them with `python flag_existing_articles.py` and `python backfill_article_languages.py` in `scripts/` (see the [scripts README](../scripts/README.md#articles-russian-news-outlets)). Compare other tables with `schema.sql` the same way.
 
 ## Notes
 

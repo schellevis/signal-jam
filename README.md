@@ -1,6 +1,13 @@
 # Signal jam 
 This _monorepo_ hosts the software suite of the _Signal Jam_ project. With this software you can monitor disinformation on social media around certain topics. It consists of two parts: a set of scripts that scrape social media and save the data to a database, and a dashboard that shows the data gathered. 
 
+## What it collects
+- **Social media posts** from X, TikTok, Instagram and Facebook: the timelines of accounts you follow and the results of search terms, captured in Firefox with the [Zeeschuimer](https://github.com/digitalmethodsinitiative/zeeschuimer) extension (a fork with a Facebook module). Only Dutch posts are kept, and candidate accounts only with posts about the theme.
+- **Articles** from Russian state media and propaganda sites (optional), translated into English.
+- **Weekly summaries** of both, written by an LLM.
+
+Language detection, translation and summaries use an LLM of your choice: Anthropic, OpenAI, a local Ollama model or Claude Code. People label the posts on the dashboard; an account is approved after three posts labeled as misinformation. See the `README` in `scripts/` for details.
+
 ## Provider agnostic
 The software suite is tailored for use with cloud providers for ease of use, but is built as _provider agnostic_ as possible. This means that you can decide on yourself what to use for each part of the application. Each part has a self-hosted or open source alternative so that you can run this software without relying on big tech. That being said, using the recommended options makes setting things up a lot easier and most alternatives have not been tested in production. 
 
