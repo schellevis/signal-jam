@@ -11,8 +11,12 @@ from glob import glob
 from platform import system
 from pathlib import Path
 
+from functions.utils.geckodriver_service_args import geckodriver_service_args
+from functions.zeeschuimer import ZEESCHUIMER_DIR, require_installed_zeeschuimer, require_platform_module
+
 BASE_DIR = Path(__file__).parent.parent
 SCRAPING_TOOLS_DIR = BASE_DIR / 'scraping_tools'
+STEALTH_SCRIPT_PATH = SCRAPING_TOOLS_DIR / 'stealth.js'
 
 
 def get_profile():
@@ -67,23 +71,33 @@ def _build_firefox_driver(local_profile_dir, headless):
     firefox_profile.set_preference("security.fileuri.strict_origin_policy", False)
     firefox_profile.update_preferences()
     firefox_options.profile = firefox_profile
+    if os.getenv('FIREFOX_BINARY'):
+        firefox_options.binary_location = os.getenv('FIREFOX_BINARY')
 
     geckodriver_path = shutil.which('geckodriver') or str(SCRAPING_TOOLS_DIR / 'geckodriver')
-    firefox_service = Service(geckodriver_path)
+    firefox_service = Service(geckodriver_path, service_args=geckodriver_service_args(geckodriver_path))
     driver = webdriver.Firefox(service=firefox_service, options=firefox_options)
     print("Opened Firefox")
     return driver
 
 
 def _install_zeeschuimer(driver):
-    driver.install_addon(str(SCRAPING_TOOLS_DIR / 'zeeschuimer-1.14.2.xpi'), temporary=True)  # TODO: update version when upgrading
-    # Pinned (not execute_script'd) so it re-runs before every page load, not just the current one.
-    driver.script.pin((SCRAPING_TOOLS_DIR / 'stealth.js').read_text())
-    print("Successfully installed Zeeschuimer and pinned the stealth script...")
+    driver.install_addon(str(ZEESCHUIMER_DIR), temporary=True)
+    print(f"Installed Zeeschuimer from {ZEESCHUIMER_DIR}")
+    _pin_stealth_script(driver)
 
     driver.set_page_load_timeout(45)
     driver.set_script_timeout(120)
     driver.implicitly_wait(5)
+
+
+def _pin_stealth_script(driver):
+    if not STEALTH_SCRIPT_PATH.exists():
+        print(f"No stealth script at {STEALTH_SCRIPT_PATH}, continuing without it")
+        return
+    # Pinned (not execute_script'd) so it re-runs before every page load, not just the current one.
+    driver.script.pin(STEALTH_SCRIPT_PATH.read_text())
+    print("Pinned the stealth script")
 
 
 def _open_zeeschuimer_panel(driver):
@@ -101,12 +115,18 @@ def _open_zeeschuimer_panel(driver):
     driver.switch_to.window(driver.window_handles[0])
 
 
-def setup_selenium(headless=True):
+def setup_selenium(platform_stats_id, headless=True):
+    require_installed_zeeschuimer()
     firefox_profile_dir = get_profile()
     local_profile_dir = copy_profile_to_local_folder(firefox_profile_dir)
 
     driver = _build_firefox_driver(local_profile_dir, headless)
-    _install_zeeschuimer(driver)
-    _open_zeeschuimer_panel(driver)
+    try:
+        _install_zeeschuimer(driver)
+        _open_zeeschuimer_panel(driver)
+        require_platform_module(driver, platform_stats_id)
+    except Exception:
+        driver.quit()
+        raise
 
     return driver

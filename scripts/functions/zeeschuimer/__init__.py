@@ -1,0 +1,3 @@
+from .zeeschuimer_source import ZEESCHUIMER_DIR, load_zeeschuimer_source, installed_zeeschuimer_commit
+from .install_zeeschuimer import install_zeeschuimer
+from .require_zeeschuimer import require_installed_zeeschuimer, require_platform_module

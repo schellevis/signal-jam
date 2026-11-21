@@ -39,7 +39,7 @@ def main():
     terms_to_scrape = pick_rotating_sample(
         terms_to_scrape, TERMS_PER_RUN, ROTATION_STATE_PATH, 'terms')
 
-    driver = setup_selenium(headless=SELENIUM_HEADLESS)
+    driver = setup_selenium(TIKTOK_PLATFORM_STATS_ID, headless=SELENIUM_HEADLESS)
     llm = get_llm_provider(LANGUAGE_DETECTION_PROVIDER)
 
     try:
