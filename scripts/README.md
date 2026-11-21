@@ -1,5 +1,5 @@
 # Scripts
-This folder contains the scraping scripts that collect social media posts and push them to the database. X (Twitter), TikTok, and Instagram are supported; Facebook is not (Zeeschuimer, the browser extension these scripts rely on to capture posts, has no Facebook module).
+This folder contains the scraping scripts that collect social media posts and push them to the database. X (Twitter), TikTok, Instagram and Facebook are supported.
 
 ## Setup
 
@@ -12,13 +12,37 @@ cp .env.example .env
 
 The accounts, search terms and filter terms to scrape live in the database: add them on the Instellingen page of the dashboard (see [Scrape settings](#scrape-settings)).
 
+### Firefox, geckodriver and Zeeschuimer
+The social media scrapers drive Firefox with Selenium and capture posts with the [Zeeschuimer](https://github.com/digitalmethodsinitiative/zeeschuimer) extension. The official Zeeschuimer has no Facebook module, so the scrapers use the fork [schellevis/zeeschuimer](https://github.com/schellevis/zeeschuimer), pinned to one commit in `zeeschuimer_source.json`. Install it once (this needs `git`):
+
+```bash
+python install_zeeschuimer.py
+```
+
+This checks out the pinned commit into `scraping_tools/zeeschuimer`, which the scrapers load as a temporary add-on (no signing or `.xpi` needed). The scrapers stop with instructions when that folder is missing, holds another commit, or lacks the module for their platform. To upgrade, put the new commit of the fork in `zeeschuimer_source.json` and run the script again.
+
+`scraping_tools/` (not in git) further holds:
+
+| File | What it is |
+|---|---|
+| `geckodriver` | Only needed when geckodriver is not on your `PATH` |
+| `stealth.js` | Optional script pinned into every page. Without it the scrapers run and print a notice |
+
+Firefox 138 and newer only let WebDriver open `about:debugging` and the Zeeschuimer panel when geckodriver runs with `--allow-system-access`, which needs geckodriver 0.36 or newer. The scrapers pass the flag when geckodriver supports it and stop with an error when Firefox is 138+ and geckodriver is older. Set `FIREFOX_BINARY` in `.env` when Firefox is not on your `PATH`.
+
 ## Running
 
 ```bash
 python scrape_x.py
 python scrape_tiktok.py
 python scrape_instagram.py
+python scrape_facebook.py
 ```
+
+### Facebook
+`scrape_facebook.py` scrapes the timelines of watched Facebook pages and profiles, and searches posts for the search terms (`facebook.com/search/posts`). The Firefox profile has to be logged into Facebook. Facebook shows a puzzle on logins it finds suspicious, so log in by hand in a normal Firefox and copy the profile (see [Getting the Firefox profile to the cloud](#getting-the-firefox-profile-to-the-cloud)), and use an account you can afford to lose.
+
+Shared posts become `repost` (or `quote` when the account added text) with the shared post as parent. Only the post itself, its author, links and engagement counts are kept in `platform_data`: Facebook's raw capture runs to about 170 KB per post.
 
 ## Articles (Russian news outlets)
 
@@ -43,7 +67,7 @@ What to scrape is stored in the database and managed by logged-in users on the I
 | Setting | Stored in | Description |
 |---|---|---|
 | Accounts | `accounts` with `is_watched = true` | The accounts whose posts are scraped |
-| Search terms | `scrape_terms`, kind `search` | Terms searched on the platform: X search, TikTok search, or Instagram's `/explore/search/keyword/` page |
+| Search terms | `scrape_terms`, kind `search` | Terms searched on the platform: X search, TikTok search, Instagram's `/explore/search/keyword/` page or Facebook's `/search/posts` page |
 | Filter terms | `scrape_terms`, kind `filter` | Theme word filter applied to user scrape results (see below) |
 
 ### Theme flag and account approval
@@ -62,6 +86,8 @@ On X, replies are not scraped by default, to prevent overly long discussion from
 ## Cloud deployment
 
 The scraper uses Selenium with Firefox and the Zeeschuimer browser extension, which means the container needs Firefox + geckodriver, and a Firefox profile that is already logged into X, Instagram and Tiktok. The `Dockerfile` in this folder handles the first requirement; the profile requires a one-time manual setup step described below.
+
+> The image does not install Zeeschuimer yet, and has not been tested with it: the cloud setup needs `git` in the image and `python install_zeeschuimer.py` as a build step. `.dockerignore` keeps `scraping_tools/` (including a logged-in Firefox profile) and `data/` out of the image.
 
 ### Getting the Firefox profile to the cloud
 

@@ -1,0 +1,6 @@
+scraping_tools/*
+!scraping_tools/stealth.js
+data/
+.env
+.env.*
+**/__pycache__/
