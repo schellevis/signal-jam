@@ -48,3 +48,24 @@ My coding standard is heavily focused on clean, modular code. Avoid long files a
 - Comments are acceptable for legal stuff, warnings, helpful explanations (i.e. with regex) or todo's
 
 ## Notes
+
+### Running and testing
+- `uv run --with-requirements scripts/requirements.txt <script>` - run a script without a venv (there is no pyproject.toml); use Python 3.11
+- `python install_zeeschuimer.py` (in `scripts/`) - check out the pinned Zeeschuimer fork commit (`scripts/zeeschuimer_source.json`) into `scripts/scraping_tools/zeeschuimer`; scrapers refuse to start without it
+- `setup_selenium(platform_stats_id)` - stats ids are `twittercom`, `tiktokcom`, `instagramcom`, `facebookcom`; it stops when the loaded Zeeschuimer lacks that module
+- Local test stack: Postgres + `database/schema.sql`, PostgREST with the `anon` role from `database/README.md`, dashboard with `VITE_DB_PROVIDER=postgrest`
+- `vite build` needs `VITE_APP_TITLE`, `VITE_APP_DESCRIPTION` and `VITE_APP_URL`, otherwise it fails with "URI malformed"
+- `ndjson_to_db` sleeps `RATE_LIMIT_REST_SECONDS` (120) after every capture; set it to 0 in tests
+- Test parsers offline on a saved Zeeschuimer ndjson capture before doing live scrapes; live runs use real accounts
+
+### Gotchas
+- Firefox 138+ needs geckodriver 0.36+ with `--allow-system-access` (handled in `functions/utils/geckodriver_service_args.py`)
+- Facebook: automated logins get a puzzle and a session moved between browsers is invalidated; log in by hand in Firefox and copy the profile (`scripts/tmp_login_facebook.py` is a CLI fallback)
+- Facebook captures are ~170 KB per post; the parser stores a compact `platform_data` and must skip malformed records one by one
+- `package.json` pins Yarn 1 but `yarn.lock` is Berry; a `yarn install` may rewrite `yarn.lock` and `.yarnrc.yml`, don't commit those changes by accident
+- `database/README.md` PostgREST grants lack `scrape_terms` and insert on `accounts`; `database/migrations/` is referenced but `*.sql` is gitignored
+- The Docker image does not install Zeeschuimer and is untested; cloud configs only run `scrape_x.py`
+
+### Sensitive data
+- `scripts/scraping_tools/` (logged-in Firefox profile) and `scripts/data/` (captures with real users' posts) are gitignored and dockerignored; never commit them or copy them elsewhere
+- Share captures with external tools or review agents only as aggregates (counts, key names), not post text, names or URLs
