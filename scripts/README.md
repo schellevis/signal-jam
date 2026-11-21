@@ -44,6 +44,30 @@ python scrape_facebook.py
 
 Shared posts become `repost` (or `quote` when the account added text) with the shared post as parent. Only the post itself, its author, links and engagement counts are kept in `platform_data`: Facebook's raw capture runs to about 170 KB per post.
 
+`tmp_login_facebook.py` is a temporary helper that logs a Firefox profile into Facebook from the command line, for machines without a screen. It asks for the e-mail address, password and any two-factor code, and saves a screenshot to `scraping_tools/facebook-login.png` when Facebook asks for something else. Facebook may still show a puzzle it cannot get past; logging in by hand stays the reliable route.
+
+### Language filter
+Only Dutch posts are stored. `functions/ndjson_to_db.py` asks an LLM for the language of every post that passes the filters, and drops it unless the answer is `nl` (a post whose check fails is dropped too). The provider comes from `LANGUAGE_DETECTION_PROVIDER` (default `ollama`, a local model, see [LLMs](#llms)), so a scraper run needs that model to be reachable. Change `REQUIRED_LANGUAGE_ISO` in `functions/ndjson_to_db.py` to collect another language.
+
+## Weekly summaries
+
+```bash
+python summarize_weeks.py
+```
+
+Writes one summary per finished week (Monday to Sunday, from 2026 on) into `summaries`: an analysis of the week's theme posts, and a separate summary of the week's articles that match `source_data/articles/search_terms.json`. Weeks that are already done are skipped, so it can run from cron. The prompts are in `prompts/`. The LLM comes from `LLM_PROVIDER`.
+
+## LLMs
+The scripts use an LLM for three things, each with its own setting in `.env`:
+
+| Setting | Used for | Default |
+|---|---|---|
+| `LANGUAGE_DETECTION_PROVIDER` | The language filter of the social media scrapers | `ollama` |
+| `LLM_PROVIDER` | `summarize_weeks.py` | `ollama` |
+| `TRANSLATION_PROVIDER` | Translating articles (see below) | `ollama` |
+
+The providers are `anthropic` (`pip install anthropic`, `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`), `openai` (`pip install openai`, `OPENAI_API_KEY`, `OPENAI_MODEL`), `ollama` (no extra package, `OLLAMA_BASE_URL`, `OLLAMA_MODEL`) and `claude_code`, which runs through a logged-in Claude Code CLI (`pip install claude-agent-sdk`, optional `CLAUDE_CODE_MODEL`). These packages are not in `requirements.txt`, so install the one for the provider you use. They live in `functions/llm/providers/`; add a provider there and register it in `functions/llm/__init__.py`.
+
 ## Articles (Russian news outlets)
 
 Besides social media, the scripts gather articles from Russian state media and propaganda sites into the `articles` table. `summarize_weeks.py` uses them for the weekly propaganda summary, and the dashboard shows them on the Artikelen page. This is specific to investigating Russian disinformation, so you can skip this step (and delete the relevant page in the dashboard as well) if you do not plan to include media outlets in your research.
@@ -58,7 +82,7 @@ Besides social media, the scripts gather articles from Russian state media and p
 
 In `scrape_russian_rss.py` each article is inserted into the database first and translated straight after, with the translation saved onto the stored row. If the translation fails the article stays in the database untranslated, and the scrape goes on. If the translation model cannot be set up at all, the scrape runs without translating. `backfill_article_translations.py` translates what is still untranslated without scraping, for backlogs and retries. Set `TRANSLATION_ENABLED=false` in `.env` to turn off all translation at once (scraping goes on untranslated, and the backfill does nothing). It only picks articles whose `language` is in `TRANSLATE_ARTICLE_LANGUAGES` (default `ru`) and that have no `title_en` yet. It handles at most `BATCH_SIZE` articles per run (constant at the top of the script, 50), articles flagged as relevant first, then newest first. A failed article is skipped and retried on the next run. The model comes from `TRANSLATION_PROVIDER` (default `ollama`) and `TRANSLATION_MODEL` (default `gemma4:latest` for Ollama, otherwise the provider's own default), independent of `OLLAMA_MODEL`. Translations are used by the weekly propaganda summary (English title and content when available, original otherwise) and shown on the Artikelen page. Only the title and the first 250 characters of the content (as plain text, cut at a word boundary) are translated, which keeps a local model fast; the dashboard shows that preview with an ellipsis. Change `TRANSLATED_CONTENT_LENGTH` in `functions/articles/translate_article.py` to translate more. The prompt is in `prompts/translate_to_english.txt`.
 
-Copy the `*.example.json` files in `source_data/articles/` to the same name without `.example` to configure them. `search_terms.json` decides which articles end up in the weekly summary and which get `relevant_for_signal_jam_theme` (the same flag as for posts, see below). All articles are stored; the Artikelen page only shows flagged ones unless "Alleen artikelen over Nederland" is unchecked or you search for a term. Every source needs a `language` (ISO 639-1) in its source file. Run `database/migrations/articles_relevant_for_signal_jam_theme.sql`, `database/migrations/articles_english_translation.sql`, then `flag_existing_articles.py` and `backfill_article_languages.py` on an existing database. Set `DNS_RESOLVER` / `DNS_OVER_HTTPS_URL` in `.env` if your ISP blocks the Russian domains.
+Copy the `*.example.json` files in `source_data/articles/` to the same name without `.example` to configure them. `search_terms.json` decides which articles end up in the weekly summary and which get `relevant_for_signal_jam_theme` (the same flag as for posts, see below). All articles are stored; the Artikelen page only shows flagged ones unless "Alleen artikelen over Nederland" is unchecked or you search for a term. Every source needs a `language` (ISO 639-1) in its source file. On a database from before articles had these columns, add them first (see [Updating an existing database](../database/README.md#updating-an-existing-database)), then run `flag_existing_articles.py` and `backfill_article_languages.py`. Set `DNS_RESOLVER` / `DNS_OVER_HTTPS_URL` in `.env` if your ISP blocks the Russian domains.
 
 ## Scrape settings
 

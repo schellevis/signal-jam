@@ -4,7 +4,7 @@ The front-end of the application consists of a Vue dashboard, presenting the dat
 ## Pages
 - **Dashboard** — shows labeled posts with disinformation highlighted, along with stats modules (daily activity, most active accounts, topics).
 - **Posts** - View all posts, authenticated users can label/add frames here as well.
-- **Artikelen** - The articles from media disinformation sources, as opposed to individual posts on social media.
+- **Artikelen** - The articles from media disinformation sources, as opposed to individual posts on social media. Behind a password, see [Articles password](#articles-password).
 - **Samenvattingen** - Short summaries of posted content, organized per week.
 - **Over** - About page.
 - **Instellingen** - Account, filter and search term management.
@@ -21,6 +21,8 @@ yarn dev
 ```
 
 The dev server runs at `http://localhost:5173` by default.
+
+Use Yarn 4: `yarn.lock` is in Yarn Berry format, although `package.json` still names Yarn 1 under `packageManager`. A newer Yarn may rewrite `yarn.lock` and `.yarnrc.yml` on install; don't commit those changes by accident.
 
 ## Environment variables
 
@@ -107,6 +109,10 @@ Auth and database access are abstracted behind provider modules:
 - **Database**: `src/database/index.js` — swap providers via `VITE_DB_PROVIDER`
 
 To add a new provider, implement the same interface as the existing Supabase provider and register it in the respective `index.js`.
+
+## Articles password
+
+The Artikelen page sits behind a simple password gate (`src/components/PasswordGate.vue`), so the propaganda articles are not shown to every passer-by. The password is the constant `ARTICLES_PASSWORD` in `src/utils/passwordGate.js`; change it there before deploying. It ships with the frontend, so anyone who reads the JavaScript can find it: it keeps casual visitors out, nothing more. A correct password is remembered in the browser's local storage.
 
 ## Dashboard start date
 
